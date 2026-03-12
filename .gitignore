@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Model files (download separately)
+*.onnx
+!asvision/models/.gitkeep
+*.pt
+*.pth
+*.h5
+*.pb
+*.tflite
+
+# Demo videos (keep these for GitHub)
+!aislesense/*.mp4
+!aislesense/*.webm
+!aislesense/*.mov
+
+# ROS
+*.bag
+log/
+install/
+build/
+
+# Map files (generated during runtime)
+aislesense/*.pgm
+aislesense/*.yaml
+!aislesense_map.pgm
+!aislesense_map.yaml
+!my_room_map.pgm
+!my_room_map.yaml
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+.coverage
+htmlcov/
+*.cover
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json

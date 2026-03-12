@@ -1,0 +1,33 @@
+# AisleSense Robot — Docker Compose (Raspberry Pi 5)
+services:
+  aislesense_core:
+    build: .
+    container_name: aislesense_ros2
+    network_mode: "host"
+    privileged: true
+    devices:
+      - "/dev/gpiochip4:/dev/gpiochip4" 
+      - "/dev/ttyACM0:/dev/ttyACM0"     
+      - "/dev/ttyUSB0:/dev/ttyUSB0"     
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - ROBOT_MODE=${ROBOT_MODE:-standby}
+      # Odometry calibration — adjust these values to match your hardware
+      - WHEEL_RADIUS=${WHEEL_RADIUS:-0.05}
+      - WHEEL_BASE=${WHEEL_BASE:-0.25}
+      - TICKS_PER_REV=${TICKS_PER_REV:-1170.0}
+      - LINEAR_CORRECTION=${LINEAR_CORRECTION:-1.0}
+      - ANGULAR_CORRECTION=${ANGULAR_CORRECTION:-1.0}
+    volumes:
+      - ./aislesense_core.py:/ros2_ws/aislesense_core.py
+      - ./odometry_node.py:/ros2_ws/odometry_node.py
+      - ./my_room_map.yaml:/ros2_ws/my_room_map.yaml
+      - ./my_room_map.pgm:/ros2_ws/my_room_map.pgm
+      - ./ekf.yaml:/ros2_ws/ekf.yaml
+      - ./ekf_mapping.yaml:/ros2_ws/ekf_mapping.yaml
+      - ./nav2_params.yaml:/ros2_ws/nav2_params.yaml
+      - ./scan_stabilizer.py:/ros2_ws/scan_stabilizer.py
+      - ./slam_params.yaml:/ros2_ws/slam_params.yaml
+      - ./entrypoint.sh:/ros2_ws/entrypoint.sh
+    entrypoint: ["/bin/bash", "/ros2_ws/entrypoint.sh"]
