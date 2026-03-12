@@ -29,19 +29,19 @@ The robot navigates pre-mapped store environments, stops at designated shelf loc
 
 Real-world autonomous navigation demonstration showing the robot patrolling aisles with LiDAR-based localization and path planning:
 
-https://github.com/user-attachments/assets/Demo_IRL_Real.mp4
+[**Watch Demo Video →** Demo_IRL_Real.mp4](aislesense/Demo_IRL_Real.mp4)
 
 ### 📊 RViz Visualization
 
 ROS 2 visualization showing the robot's sensor fusion, costmaps, and real-time trajectory planning in RViz2:
 
-https://github.com/user-attachments/assets/Demo_IRL_Rviz.webm
+[**Watch RViz Demo →** Demo_IRL_Rviz.webm](aislesense/Demo_IRL_Rviz.webm)
 
 ### 🔍 Vision Pipeline Analytics
 
 Complete vision pipeline demonstration — shelf segmentation, product detection, depth estimation, and retail analytics dashboard:
 
-https://github.com/user-attachments/assets/AisleSense_Detection_Pipeline_Demo.mp4
+[**Watch Pipeline Demo →** AisleSense_Detection_Pipeline_Demo.mp4](aislesense/AisleSense_Detection_Pipeline_Demo.mp4)
 
 ---
 
