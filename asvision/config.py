@@ -1,8 +1,7 @@
 """
-AisleSense Vision — Configuration
-=================================
-Model paths, preprocessing constants, detection thresholds, and
-reference data for the retail shelf auditing pipeline.
+AisleSense Configuration
+========================
+All paths, constants, thresholds, and mock data for the retail auditing pipeline.
 """
 import os
 
@@ -34,36 +33,35 @@ IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 # ---------------------------------------------------------------------------
-# Default detection thresholds (tuned for YOLO11x / YOLO11x-seg)
+# Default thresholds — tuned for heavy YOLO11x / YOLO11x-seg models
 #
-# High-capacity "x" models produce confident, clean predictions.
-# A 0.35 confidence floor filters low-quality false positives without
-# discarding genuine detections.  IoU 0.50 prevents adjacent products
-# from being suppressed in dense shelf scenes while merging true
-# duplicates.  Depth gap cutoff 0.65 is a reasonable starting point
-# for most standard gondola shelving.
+#  • High-capacity "x" models produce confident, clean predictions.
+#    A 0.35 confidence floor eliminates low-quality FPs without missing items.
+#  • IoU 0.50 prevents adjacent products from being suppressed in dense
+#    shelf scenes while still merging true duplicates.
+#  • Depth gap cutoff 0.65 is a good starting point for most shelf setups.
 # ---------------------------------------------------------------------------
 DEFAULT_CONF_THRESHOLD = 0.35
 DEFAULT_IOU_THRESHOLD = 0.50
 DEFAULT_DEPTH_GAP_CUTOFF = 0.65
 
 # ---------------------------------------------------------------------------
-# Shelf-to-item assignment
+# Shelf → item assignment
 # ---------------------------------------------------------------------------
-SHELF_OVERLAP_MIN = 0.20  # Minimum bbox-mask IoU to assign an item to a shelf
+SHELF_OVERLAP_MIN = 0.20  # min bbox-mask IoU to count as "on shelf"
 
 # ---------------------------------------------------------------------------
-# Restock estimation constants
+# Restock / physical constants
 # ---------------------------------------------------------------------------
-SHELF_DEPTH_CM = 45  # Typical gondola shelf depth in centimetres
+SHELF_DEPTH_CM = 45  # typical gondola shelf depth in cm
 
 # ---------------------------------------------------------------------------
-# Expiry tracking configuration
+# Expiry tracking
 # ---------------------------------------------------------------------------
 EXPIRY_ALERT_DAYS = 30
 
 # ---------------------------------------------------------------------------
-# Reference planogram (shelf label → expected brand keywords)
+# Mock planogram  (shelf_label → expected brand keywords)
 # ---------------------------------------------------------------------------
 MOCK_PLANOGRAM: dict[str, list[str]] = {
     "Shelf 1": ["coca-cola", "pepsi", "sprite", "fanta", "7up", "mountain dew"],
@@ -74,7 +72,7 @@ MOCK_PLANOGRAM: dict[str, list[str]] = {
 }
 
 # ---------------------------------------------------------------------------
-# Shelf category assignments
+# Mock shelf categories
 # ---------------------------------------------------------------------------
 SHELF_CATEGORIES: dict[str, str] = {
     "Shelf 1": "beverages",

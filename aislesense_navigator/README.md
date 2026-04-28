@@ -38,6 +38,7 @@ python main.py --map /path/to/map.yaml    # or specify any map
 | **One-click nav** | Each region gets a **Go ▸** button that sends `NavigateToPose` |
 | **Persistence** | Regions saved to `regions.json` — survives restarts |
 | **ROS 2 fallback** | Uses `rclpy` action client if available, otherwise `ros2 topic pub` via subprocess |
+| **Assisted Route** | Dock → SHELF → PACKING_AREA loops with manual drive + tray control at SHELF |
 
 ---
 
@@ -51,6 +52,17 @@ python main.py --map /path/to/map.yaml    # or specify any map
    Press Escape to default to the region centroid.
 4. **Save** — toolbar or `File ▸ Save Regions`.
 5. **Navigate** — press the green **Go ▸** button in the right panel.
+
+### Assisted Route (Dock → SHELF → PACKING_AREA)
+
+Use the **Assisted Route** tab to run the operator‑gated flow:
+
+1. Ensure regions named `SHELF` and `PACKING_AREA` exist, and set a dock pose.
+2. Click **Start Assisted Route** — robot drives to `SHELF`.
+3. At `SHELF`, the camera preview starts and manual drive + tray buttons enable.
+4. Press **Done at SHELF** to send the robot to `PACKING_AREA`.
+5. Press **Pickup OK at PACKING_AREA** to return to `SHELF`.
+6. Repeat steps 3–5 as needed; click **Stop / Return to Dock** to finish.
 
 ---
 
@@ -78,14 +90,15 @@ Edit `config.py` to change:
 - `ROS_DOMAIN_ID` — must match your robot's domain (default `42`)
 - `DEFAULT_MAP_YAML` — fallback map path
 - `REGION_COLORS` — colour palette for new regions
+- `CAMERA_INDEX` — USB camera index for assisted route preview
 
 ---
 
 ## Requirements
 
 - **Python 3.10+**
-- **Pillow**, **PyYAML**, **numpy** (see `requirements.txt`)
-- **ROS 2 Humble** (optional — only needed for live navigation)
+- **Pillow**, **PyYAML**, **numpy**, **opencv‑python** (see `requirements.txt`)
+- **ROS 2 Humble** (required for assisted route manual control)
 - **Nav2** running on the robot (same `ROS_DOMAIN_ID`)
 
 ---

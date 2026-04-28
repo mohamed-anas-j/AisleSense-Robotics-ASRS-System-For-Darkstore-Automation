@@ -1,1 +1,1 @@
-"""AisleSense Vision — Retail analytics engine."""
+# analytics package

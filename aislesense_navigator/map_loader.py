@@ -1,9 +1,8 @@
 """
 AisleSense Region Navigator — Map Loader
-========================================
-Loads a ROS 2 navigation map (PGM occupancy grid + YAML metadata) and
-provides bidirectional coordinate transforms between pixel space and
-map-frame metres.
+
+Loads a ROS2 navigation map (PGM image + YAML metadata) and provides
+coordinate transforms between pixel space and map‑frame meters.
 """
 import os
 import yaml
@@ -11,7 +10,7 @@ from PIL import Image
 
 
 class MapData:
-    """Holds a loaded navigation map and provides coordinate metadata."""
+    """Holds a loaded navigation map and its coordinate metadata."""
 
     def __init__(self, yaml_path: str):
         self.yaml_path = os.path.abspath(yaml_path)

@@ -1,8 +1,5 @@
 """
 AisleSense Region Navigator — Configuration
-===========================================
-GUI theme constants, filesystem paths, and navigation defaults.
-Colour palette inspired by the Catppuccin Mocha theme.
 """
 import os
 
@@ -48,3 +45,17 @@ ROS_DOMAIN_ID = 42
 NAV_ARROW_LEN = 20          # pixels — approach direction arrow on canvas
 NAV_MARKER_RADIUS = 6       # pixels — approach point dot on canvas
 SCAN_WAIT_SECONDS = 2       # seconds to dwell at each region during scan
+
+# ── Assisted Route ───────────────────────────────────────────
+ASSISTED_WAYPOINT_A = "SHELF"
+ASSISTED_WAYPOINT_B = "PACKING_AREA"
+ASSISTED_DOCK_NAME = "DOCK"  # region name fallback if dock_pose is not set
+
+# Manual control
+MANUAL_LIN_SPEED = 0.15     # m/s
+MANUAL_ANG_SPEED = 0.6      # rad/s
+MANUAL_PUB_MS = 100         # publish interval while holding buttons
+
+# Camera
+CAMERA_INDEX = 0
+CAMERA_FPS_MS = 33

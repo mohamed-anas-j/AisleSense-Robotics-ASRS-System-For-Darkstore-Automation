@@ -4,6 +4,8 @@
 Pillow>=9.0
 PyYAML>=6.0
 numpy>=1.20
+opencv-python>=4.8
+# Headless alternative (no GUI): use opencv-python-headless>=4.8 instead
 
 # rclpy is NOT pip‑installable — it comes with your ROS 2 installation.
 # Source ROS 2 before running if you want live navigation:

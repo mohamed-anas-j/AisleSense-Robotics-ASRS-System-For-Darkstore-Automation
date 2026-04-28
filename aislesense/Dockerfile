@@ -1,8 +1,7 @@
-# AisleSense Robot — Dockerfile
-# ROS 2 Humble base image with Nav2, SLAM Toolbox, and RPLidar driver.
+# Dockerfile
 FROM ros:humble-ros-base
 
-# Install ROS 2 packages and system dependencies
+# Install necessary packages including Nav2 and SLAM
 RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-serial \
@@ -15,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     ros-humble-rmw-cyclonedds-cpp \
     && rm -rf /var/lib/apt/lists/*
 
-# Raspberry Pi 5 GPIO library and numerical computing
+# The new Pi 5 GPIO library!
 RUN pip3 install rpi-lgpio numpy
 
 WORKDIR /ros2_ws

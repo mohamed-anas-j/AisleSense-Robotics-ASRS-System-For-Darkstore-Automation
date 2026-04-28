@@ -1,1 +1,1 @@
-"""AisleSense Vision — Inference pipeline stages."""
+# pipeline package

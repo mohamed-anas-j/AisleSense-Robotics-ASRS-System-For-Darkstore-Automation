@@ -1,25 +1,33 @@
 """
 AisleSense Region Navigator — Main GUI Application
-===================================================
-Tkinter application for interactive map-based region editing and robot
-navigation control.
 
-Features:
-    - Load ROS 2 map YAML/PGM files with zoom, pan, and scroll.
-    - Draw and name polygon regions with per-region approach poses.
-    - Dock pose — saved initial robot pose, auto-published as a 2D
-      Pose Estimate on startup.
-    - Scan tour — ordered region list for one-click autonomous patrol
-      that visits each region with configurable dwell time and
-      returns to the dock on completion.
+Tkinter application that displays the navigation map, lets the user
+draw and name polygon regions, and provides one‑click navigation
+buttons that send goal poses to the Nav2 stack.
+
+Features
+--------
+•  Load map YAML and draw polygon regions
+•  Set individual approach poses per region
+•  **Dock pose** — saved initial robot pose, auto‑published
+   as a 2D Pose Estimate on startup
+•  **Scan tour** — ordered region list; one‑click autonomous
+   patrol that visits each region, waits, then returns to dock
 """
 
 import math
 import os
+import threading
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
 
 from PIL import Image, ImageTk
+
+try:
+    import cv2
+except Exception:
+    cv2 = None
 
 from config import (
     WINDOW_TITLE, WINDOW_SIZE, CANVAS_BG, PANEL_BG, PANEL_FG,
@@ -29,6 +37,9 @@ from config import (
     ACCENT_GREEN, ACCENT_RED, ACCENT_BLUE, ACCENT_YELLOW,
     ACCENT_PEACH, ACCENT_TEAL, ACCENT_MAUVE,
     SCAN_WAIT_SECONDS,
+    ASSISTED_WAYPOINT_A, ASSISTED_WAYPOINT_B, ASSISTED_DOCK_NAME,
+    MANUAL_LIN_SPEED, MANUAL_ANG_SPEED, MANUAL_PUB_MS,
+    CAMERA_INDEX, CAMERA_FPS_MS,
 )
 from map_loader import MapData
 from region_manager import RegionManager
@@ -92,6 +103,25 @@ class AisleSenseNavigatorApp:
         # Managers
         self.region_mgr = RegionManager(regions_file)
         self.navigator = Navigator(domain_id=ros_domain_id)
+
+        # Assisted route state
+        self._assisted_thread: threading.Thread | None = None
+        self._assisted_cancel = threading.Event()
+        self._await_done = threading.Event()
+        self._await_pickup = threading.Event()
+        self._assisted_state = "idle"
+
+        # Manual control state
+        self._manual_cmd = None
+        self._manual_job = None
+        self._manual_buttons = []
+
+        # Camera preview state
+        self._camera_cap = None
+        self._camera_job = None
+        self._camera_running = False
+        self._camera_img = None
+        self._cv2_available = cv2 is not None
 
         # Build UI
         self._build_ui()
@@ -282,6 +312,11 @@ class AisleSenseNavigatorApp:
         self._notebook.add(scan_tab, text=" Scan Tour ")
         self._build_scan_tab(scan_tab)
 
+        # Tab 3: Assisted Route
+        assist_tab = tk.Frame(self._notebook, bg=PANEL_BG)
+        self._notebook.add(assist_tab, text=" Assisted Route ")
+        self._build_assisted_tab(assist_tab)
+
     def _build_scan_tab(self, parent):
         """Build the scan‑tour ordering + controls tab."""
         # ── Header ──
@@ -361,6 +396,137 @@ class AisleSenseNavigatorApp:
         tk.Label(dock_frame, textvariable=self._dock_info_var,
                  bg="#1e1e2e", fg=DOCK_COLOR,
                  font=("Helvetica", 10), padx=8, pady=6).pack(fill=tk.X)
+
+    def _build_assisted_tab(self, parent):
+        """Build assisted route controls with camera + manual drive."""
+        hdr = tk.Frame(parent, bg=PANEL_BG)
+        hdr.pack(fill=tk.X, padx=10, pady=(10, 6))
+        tk.Label(hdr, text="Assisted Route", bg=PANEL_BG, fg=PANEL_FG,
+                 font=("Helvetica", 12, "bold")).pack(side=tk.LEFT)
+
+        self._assist_status_var = tk.StringVar(
+            value="Idle — ready to start")
+        tk.Label(parent, textvariable=self._assist_status_var,
+                 bg=PANEL_BG, fg=ACCENT_YELLOW,
+                 font=("Helvetica", 10), wraplength=250,
+                 justify=tk.LEFT).pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        # ── Route control buttons ──
+        ctrl_frame = tk.Frame(parent, bg=PANEL_BG)
+        ctrl_frame.pack(fill=tk.X, padx=10, pady=(0, 8))
+
+        self._assist_start_btn = tk.Button(
+            ctrl_frame, text="Start Assisted Route",
+            command=self._start_assisted_route,
+            bg=ACCENT_GREEN, fg="#1e1e2e",
+            activebackground=_lighten(ACCENT_GREEN, 0.3),
+            relief=tk.FLAT, font=("Helvetica", 10, "bold"),
+            cursor="hand2", pady=6)
+        self._assist_start_btn.pack(fill=tk.X, pady=2)
+
+        self._assist_done_btn = tk.Button(
+            ctrl_frame, text="Done at SHELF",
+            command=self._signal_done,
+            bg=ACCENT_TEAL, fg="#1e1e2e",
+            activebackground=_lighten(ACCENT_TEAL, 0.3),
+            relief=tk.FLAT, font=("Helvetica", 10, "bold"),
+            cursor="hand2", pady=6)
+        self._assist_done_btn.pack(fill=tk.X, pady=2)
+
+        self._assist_pickup_btn = tk.Button(
+            ctrl_frame, text="Pickup OK at PACKING_AREA",
+            command=self._signal_pickup_ok,
+            bg=ACCENT_BLUE, fg="#1e1e2e",
+            activebackground=_lighten(ACCENT_BLUE, 0.3),
+            relief=tk.FLAT, font=("Helvetica", 10, "bold"),
+            cursor="hand2", pady=6)
+        self._assist_pickup_btn.pack(fill=tk.X, pady=2)
+
+        self._assist_stop_btn = tk.Button(
+            ctrl_frame, text="Stop / Return to Dock",
+            command=self._stop_assisted_route,
+            bg=ACCENT_RED, fg="#1e1e2e",
+            activebackground=_lighten(ACCENT_RED, 0.3),
+            relief=tk.FLAT, font=("Helvetica", 10, "bold"),
+            cursor="hand2", pady=6)
+        self._assist_stop_btn.pack(fill=tk.X, pady=2)
+
+        # ── Manual drive controls ──
+        drive_frame = tk.LabelFrame(
+            parent, text="Manual Drive", bg=PANEL_BG, fg=PANEL_FG,
+            font=("Helvetica", 10, "bold"),
+            padx=6, pady=6, labelanchor="n")
+        drive_frame.pack(fill=tk.X, padx=10, pady=(6, 6))
+
+        def _drive_btn(label, lin, ang):
+            btn = tk.Button(
+                drive_frame, text=label, bg=BUTTON_BG, fg=BUTTON_FG,
+                relief=tk.FLAT, font=("Helvetica", 10), cursor="hand2",
+                padx=10, pady=6)
+            btn._manual_btn = True
+            self._manual_buttons.append(btn)
+            btn.bind("<ButtonPress-1>",
+                     lambda _e, l=lin, a=ang: self._start_manual_motion(l, a))
+            btn.bind("<ButtonRelease-1>",
+                     lambda _e: self._stop_manual_motion())
+            return btn
+
+        row1 = tk.Frame(drive_frame, bg=PANEL_BG)
+        row1.pack(fill=tk.X)
+        _drive_btn("Forward", MANUAL_LIN_SPEED, 0.0).pack(side=tk.LEFT, padx=4, pady=2, expand=True, fill=tk.X)
+
+        row2 = tk.Frame(drive_frame, bg=PANEL_BG)
+        row2.pack(fill=tk.X)
+        _drive_btn("Left", 0.0, MANUAL_ANG_SPEED).pack(side=tk.LEFT, padx=4, pady=2, expand=True, fill=tk.X)
+        _drive_btn("Stop", 0.0, 0.0).pack(side=tk.LEFT, padx=4, pady=2, expand=True, fill=tk.X)
+        _drive_btn("Right", 0.0, -MANUAL_ANG_SPEED).pack(side=tk.LEFT, padx=4, pady=2, expand=True, fill=tk.X)
+
+        row3 = tk.Frame(drive_frame, bg=PANEL_BG)
+        row3.pack(fill=tk.X)
+        _drive_btn("Back", -MANUAL_LIN_SPEED, 0.0).pack(side=tk.LEFT, padx=4, pady=2, expand=True, fill=tk.X)
+
+        # ── Tray controls ──
+        tray_frame = tk.LabelFrame(
+            parent, text="Tray Control", bg=PANEL_BG, fg=PANEL_FG,
+            font=("Helvetica", 10, "bold"),
+            padx=6, pady=6, labelanchor="n")
+        tray_frame.pack(fill=tk.X, padx=10, pady=(6, 6))
+
+        self._tray_out_btn = tk.Button(
+            tray_frame, text="Push OUT", command=lambda: self._send_tray_cmd("O"),
+            bg=ACCENT_PEACH, fg="#1e1e2e",
+            activebackground=_lighten(ACCENT_PEACH, 0.3),
+            relief=tk.FLAT, font=("Helvetica", 10, "bold"),
+            cursor="hand2", pady=6)
+        self._tray_out_btn.pack(fill=tk.X, pady=2)
+
+        self._tray_in_btn = tk.Button(
+            tray_frame, text="Pull IN", command=lambda: self._send_tray_cmd("I"),
+            bg=ACCENT_TEAL, fg="#1e1e2e",
+            activebackground=_lighten(ACCENT_TEAL, 0.3),
+            relief=tk.FLAT, font=("Helvetica", 10, "bold"),
+            cursor="hand2", pady=6)
+        self._tray_in_btn.pack(fill=tk.X, pady=2)
+
+        self._tray_stop_btn = tk.Button(
+            tray_frame, text="Stop Tray", command=lambda: self._send_tray_cmd("S"),
+            bg=BUTTON_BG, fg=BUTTON_FG,
+            relief=tk.FLAT, font=("Helvetica", 10), cursor="hand2", pady=6)
+        self._tray_stop_btn.pack(fill=tk.X, pady=2)
+
+        # ── Camera preview ──
+        cam_frame = tk.LabelFrame(
+            parent, text="Camera Preview", bg=PANEL_BG, fg=PANEL_FG,
+            font=("Helvetica", 10, "bold"),
+            padx=6, pady=6, labelanchor="n")
+        cam_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(6, 10))
+
+        self._camera_label = tk.Label(
+            cam_frame, text="Camera off", bg="#1e1e2e", fg="#6c7086",
+            font=("Helvetica", 10))
+        self._camera_label.pack(fill=tk.BOTH, expand=True)
+
+        self._apply_assisted_state("idle")
 
     # ── Status bar ────────────────────────────────────────────
     def _build_status_bar(self):
@@ -869,6 +1035,278 @@ class AisleSenseNavigatorApp:
             self._scan_listbox.see(idx)
 
     # ──────────────────────────────────────────────────────────
+    #  Assisted route
+    # ──────────────────────────────────────────────────────────
+
+    def _apply_assisted_state(self, state: str, msg: str | None = None):
+        prev = self._assisted_state
+        self._assisted_state = state
+        if msg:
+            self._assist_status_var.set(msg)
+            self._set_status(msg)
+
+        manual_allowed = (state == "at_a" and
+                          self.navigator.manual_control_available)
+        tray_allowed = manual_allowed
+
+        if state == "at_a" and prev != "at_a":
+            self._start_camera()
+        elif prev == "at_a" and state != "at_a":
+            self._stop_camera()
+            self._stop_manual_motion()
+
+        self._assist_start_btn.configure(
+            state=tk.NORMAL if state == "idle" else tk.DISABLED)
+        self._assist_done_btn.configure(
+            state=tk.NORMAL if state == "at_a" else tk.DISABLED)
+        self._assist_pickup_btn.configure(
+            state=tk.NORMAL if state == "waiting_pickup" else tk.DISABLED)
+        self._assist_stop_btn.configure(
+            state=tk.NORMAL if state not in {"idle", "returning_dock"}
+            else tk.DISABLED)
+
+        for btn in [self._tray_out_btn, self._tray_in_btn, self._tray_stop_btn]:
+            btn.configure(state=tk.NORMAL if tray_allowed else tk.DISABLED)
+
+        for child in self._manual_control_buttons():
+            child.configure(state=tk.NORMAL if manual_allowed else tk.DISABLED)
+
+        if state == "idle" and not self.navigator.manual_control_available:
+            self._assist_status_var.set(
+                "Idle — manual control needs ROS 2 (rclpy)")
+
+    def _manual_control_buttons(self):
+        return list(self._manual_buttons)
+
+    def _start_assisted_route(self):
+        if self.navigator.scanning:
+            messagebox.showinfo(
+                "Assisted Route", "A scan tour is running. Stop it first.")
+            return
+        if not self.navigator.manual_control_available:
+            messagebox.showerror(
+                "Assisted Route",
+                "Manual control needs ROS 2 (rclpy). Please source ROS 2 and restart.")
+            return
+        if self._assisted_thread and self._assisted_thread.is_alive():
+            messagebox.showinfo(
+                "Assisted Route", "Assisted route is already running.")
+            return
+
+        ok, msg, dock_pose, wp_a, wp_b = self._resolve_assisted_targets()
+        if not ok:
+            messagebox.showerror("Assisted Route", msg)
+            return
+
+        self._assisted_cancel.clear()
+        self._await_done.clear()
+        self._await_pickup.clear()
+
+        self._apply_assisted_state(
+            "navigating_a",
+            f"Navigating to '{wp_a[0]}'…")
+
+        self._assisted_thread = threading.Thread(
+            target=self._assisted_loop,
+            args=(dock_pose, wp_a, wp_b),
+            daemon=True)
+        self._assisted_thread.start()
+
+    def _stop_assisted_route(self):
+        self._assisted_cancel.set()
+        self.navigator.cancel_navigation()
+        self._apply_assisted_state("returning_dock", "Stopping — returning to dock…")
+
+    def _signal_done(self):
+        self._await_done.set()
+
+    def _signal_pickup_ok(self):
+        self._await_pickup.set()
+
+    def _resolve_assisted_targets(self):
+        wp_a = self.region_mgr.get(ASSISTED_WAYPOINT_A)
+        wp_b = self.region_mgr.get(ASSISTED_WAYPOINT_B)
+
+        missing = []
+        if not wp_a:
+            missing.append(ASSISTED_WAYPOINT_A)
+        if not wp_b:
+            missing.append(ASSISTED_WAYPOINT_B)
+        if missing:
+            return False, f"Missing regions: {', '.join(missing)}", None, None, None
+
+        if self.region_mgr.dock_pose:
+            dock_pose = ("Dock", *self.region_mgr.dock_pose)
+        else:
+            dock_region = self.region_mgr.get(ASSISTED_DOCK_NAME)
+            if dock_region:
+                dock_pose = (dock_region.name,
+                             dock_region.nav_point[0],
+                             dock_region.nav_point[1],
+                             dock_region.nav_yaw)
+            else:
+                return False, (
+                    f"Dock pose not set and region '{ASSISTED_DOCK_NAME}' not found"), None, None, None
+
+        wp_a_pose = (wp_a.name, wp_a.nav_point[0], wp_a.nav_point[1], wp_a.nav_yaw)
+        wp_b_pose = (wp_b.name, wp_b.nav_point[0], wp_b.nav_point[1], wp_b.nav_yaw)
+        return True, "ok", dock_pose, wp_a_pose, wp_b_pose
+
+    def _assisted_loop(self, dock_pose, wp_a, wp_b):
+        while not self._assisted_cancel.is_set():
+            if not self._navigate_blocking(wp_a, "navigating_a"):
+                break
+            if self._assisted_cancel.is_set():
+                break
+
+            self.root.after(0, lambda: self._apply_assisted_state(
+                "at_a", f"At '{wp_a[0]}' — operate tray, then press Done"))
+
+            if not self._wait_for_event(self._await_done):
+                break
+            self._await_done.clear()
+
+            if not self._navigate_blocking(wp_b, "navigating_b"):
+                break
+            if self._assisted_cancel.is_set():
+                break
+
+            self.root.after(0, lambda: self._apply_assisted_state(
+                "waiting_pickup",
+                f"At '{wp_b[0]}' — press Pickup OK to return"))
+
+            if not self._wait_for_event(self._await_pickup):
+                break
+            self._await_pickup.clear()
+
+        if dock_pose:
+            self.root.after(0, lambda: self._apply_assisted_state(
+                "returning_dock", "Returning to dock…"))
+
+        if dock_pose:
+            self._navigate_blocking(dock_pose, "returning_dock", ignore_cancel=True)
+
+        self.root.after(0, lambda: self._apply_assisted_state(
+            "idle", "Idle — assisted route stopped"))
+
+    def _wait_for_event(self, event: threading.Event) -> bool:
+        while not event.is_set():
+            if self._assisted_cancel.is_set():
+                return False
+            time.sleep(0.1)
+        return True
+
+    def _navigate_blocking(self, waypoint, state_label: str, ignore_cancel: bool = False) -> bool:
+        name, x, y, yaw = waypoint
+        event = threading.Event()
+        result = [False, ""]
+        start_time = time.time()
+        timeout_s = 300
+
+        def _cb(ok, msg):
+            result[0] = ok
+            result[1] = msg
+            event.set()
+
+        self.root.after(0, lambda: self._apply_assisted_state(
+            state_label, f"Navigating to '{name}'…"))
+        self.navigator.navigate_to(x, y, yaw, callback=_cb)
+
+        while not event.is_set():
+            if not ignore_cancel and self._assisted_cancel.is_set():
+                return False
+            if time.time() - start_time > timeout_s:
+                self.root.after(0, lambda: self._apply_assisted_state(
+                    "idle", f"Navigation timed out at '{name}'"))
+                return False
+            time.sleep(0.1)
+
+        if not result[0]:
+            self.root.after(0, lambda: self._apply_assisted_state(
+                "idle", f"Navigation failed at '{name}': {result[1]}"))
+            return False
+        return True
+
+    def _send_tray_cmd(self, cmd: str):
+        if not self.navigator.publish_tray_command(cmd):
+            self._assist_status_var.set(
+                "Tray command unavailable — check ROS 2 connection")
+
+    def _start_manual_motion(self, linear, angular):
+        if self._assisted_state != "at_a":
+            return
+        if not self.navigator.manual_control_available:
+            self._assist_status_var.set(
+                "Manual control unavailable — check ROS 2")
+            return
+        if linear == 0.0 and angular == 0.0:
+            self._stop_manual_motion()
+            return
+        self._manual_cmd = (linear, angular)
+        if self._manual_job is None:
+            self._manual_publish_loop()
+
+    def _manual_publish_loop(self):
+        if not self._manual_cmd:
+            self._manual_job = None
+            return
+        lin, ang = self._manual_cmd
+        self.navigator.publish_cmd_vel(lin, ang)
+        self._manual_job = self.root.after(MANUAL_PUB_MS, self._manual_publish_loop)
+
+    def _stop_manual_motion(self):
+        self._manual_cmd = None
+        if self._manual_job is not None:
+            self.root.after_cancel(self._manual_job)
+            self._manual_job = None
+        self.navigator.stop_cmd_vel()
+
+    def _start_camera(self):
+        if not self._cv2_available:
+            self._camera_label.configure(
+                text="OpenCV not installed — camera disabled")
+            return
+        if self._camera_running:
+            return
+        cap = cv2.VideoCapture(CAMERA_INDEX)
+        if not cap.isOpened():
+            self._camera_label.configure(
+                text="Camera not available")
+            return
+        self._camera_cap = cap
+        self._camera_running = True
+        self._update_camera_frame()
+
+    def _stop_camera(self):
+        if self._camera_job is not None:
+            self.root.after_cancel(self._camera_job)
+            self._camera_job = None
+        if self._camera_cap is not None:
+            try:
+                self._camera_cap.release()
+            except Exception:
+                pass
+        self._camera_cap = None
+        self._camera_running = False
+        self._camera_img = None
+        self._camera_label.configure(image="", text="Camera off")
+
+    def _update_camera_frame(self):
+        if not self._camera_running or self._camera_cap is None:
+            return
+        ret, frame = self._camera_cap.read()
+        if ret:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame)
+            w = self._camera_label.winfo_width()
+            h = self._camera_label.winfo_height()
+            if w > 10 and h > 10:
+                img = img.resize((w, h))
+            self._camera_img = ImageTk.PhotoImage(img)
+            self._camera_label.configure(image=self._camera_img, text="")
+        self._camera_job = self.root.after(CAMERA_FPS_MS, self._update_camera_frame)
+
+    # ──────────────────────────────────────────────────────────
     #  Delete region
     # ──────────────────────────────────────────────────────────
 
@@ -1167,5 +1605,9 @@ class AisleSenseNavigatorApp:
             if messagebox.askyesno("Save?",
                                    "Save regions before exiting?"):
                 self._save()
+        self._assisted_cancel.set()
+        self._stop_manual_motion()
+        self._stop_camera()
+        self.navigator.cancel_navigation()
         self.navigator.shutdown()
         self.root.destroy()

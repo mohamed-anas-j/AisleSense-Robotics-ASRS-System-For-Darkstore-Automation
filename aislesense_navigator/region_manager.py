@@ -1,17 +1,16 @@
 """
 AisleSense Region Navigator — Region Manager
-=============================================
-Stores named polygon regions in map-frame coordinates with JSON
-persistence.  Each region carries:
 
-    - ``polygon``   — List of ``[x, y]`` vertices in metres.
-    - ``nav_point`` — ``[x, y]`` approach position (metres).
-    - ``nav_yaw``   — Approach orientation in radians (faces the centroid).
-    - ``color``     — Hex colour string for display.
+Stores named polygon regions in map‑frame coordinates.
+Each region carries:
+  • polygon   – list of [x, y] vertices in metres
+  • nav_point – [x, y] approach position (metres)
+  • nav_yaw   – approach orientation in radians (faces the region centre)
+  • color     – hex colour for display
 
-Additional global state:
-    - ``dock_pose``  — ``[x, y, yaw]`` initial robot pose (2D Pose Estimate).
-    - ``scan_order`` — Ordered list of region names for autonomous scan tours.
+Also stores:
+  • dock_pose   – [x, y, yaw] initial robot pose (2D Pose Estimate)
+  • scan_order  – ordered list of region names for autonomous scan tour
 """
 import json
 import math

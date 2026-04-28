@@ -1,4 +1,4 @@
-# AisleSense Robot — Docker Compose (Raspberry Pi 5)
+# docker-compose.yml (Raspberry Pi 5)
 services:
   aislesense_core:
     build: .
@@ -13,7 +13,7 @@ services:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - ROBOT_MODE=${ROBOT_MODE:-standby}
-      # Odometry calibration — adjust these values to match your hardware
+      # --- Odometry calibration (change these to match YOUR robot) ---
       - WHEEL_RADIUS=${WHEEL_RADIUS:-0.05}
       - WHEEL_BASE=${WHEEL_BASE:-0.25}
       - TICKS_PER_REV=${TICKS_PER_REV:-1170.0}

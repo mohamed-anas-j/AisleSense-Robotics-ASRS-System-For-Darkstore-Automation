@@ -1,16 +1,15 @@
 """
 ONNX Session Manager
 ====================
-Creates and destroys ``onnxruntime.InferenceSession`` instances one at
-a time to stay within a 4 GB VRAM budget.  Also provides a helper to
-read the expected spatial input size directly from a loaded model.
+Create / destroy onnxruntime InferenceSessions one at a time (4 GB VRAM).
+Also exposes a helper to read the expected input spatial size from a model.
 """
 import gc
 import onnxruntime as ort
 
 
 def create_session(model_path: str, provider: str) -> ort.InferenceSession:
-    """Create an ONNX Runtime inference session with the specified execution provider."""
+    """Create an ONNX Runtime session with the requested execution provider."""
     providers = [provider]
     if provider == "CUDAExecutionProvider":
         providers.append("CPUExecutionProvider")
@@ -24,7 +23,7 @@ def create_session(model_path: str, provider: str) -> ort.InferenceSession:
 
 
 def destroy_session(session: ort.InferenceSession | None) -> None:
-    """Release an ONNX session and reclaim GPU/CPU memory."""
+    """Completely destroy an ONNX session and reclaim memory."""
     if session is not None:
         del session
     gc.collect()

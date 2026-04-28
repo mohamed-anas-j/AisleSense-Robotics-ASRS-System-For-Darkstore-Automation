@@ -1,12 +1,12 @@
 """
 Image Pre-processing Utilities
-==============================
-Letterbox resize for YOLO models and ImageNet normalisation for Depth
-Anything V2.
+===============================
+Letterbox resize for YOLO and ImageNet normalisation for Depth Anything.
 
-Uses ``INTER_AREA`` when downscaling (anti-aliased downsample) and
-``INTER_LINEAR`` when upscaling, matching the high-quality path used
-by Ultralytics and avoiding aliasing artefacts on dense shelf scenes.
+Key accuracy detail:
+  • Uses INTER_AREA when shrinking (anti-aliased down-sample) and
+    INTER_LINEAR when enlarging.  This matches Ultralytics's own
+    high-quality path and avoids aliasing artefacts on dense shelves.
 """
 import cv2
 import numpy as np

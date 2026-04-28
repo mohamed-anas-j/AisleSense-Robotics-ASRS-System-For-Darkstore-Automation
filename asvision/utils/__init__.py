@@ -1,1 +1,1 @@
-"""AisleSense Vision — Visualisation and annotation utilities."""
+# utils package

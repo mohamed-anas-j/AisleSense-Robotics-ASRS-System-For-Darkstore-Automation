@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
 """
-Scan Stabilizer Node
-====================
-Resamples incoming RPLidar scans from a variable beam count to a fixed
-720-beam output via nearest-neighbour lookup.  Invalid readings (inf, NaN,
-out-of-range) are preserved as ``inf`` so that downstream consumers such
-as SLAM Toolbox and Nav2 costmaps never see phantom obstacles.
+Scan Stabilizer Node — fixes inconsistent RPLidar beam counts.
 
-Subscribed Topics:
-    /scan         (sensor_msgs/LaserScan) — Raw LiDAR scan.
+Subscribes to /scan, resamples to a fixed number of beams via
+nearest-neighbour lookup, and republishes on /scan_stable.
+Invalid readings stay invalid (inf) so SLAM never sees phantom walls.
 
-Published Topics:
-    /scan_stable  (sensor_msgs/LaserScan) — Fixed-beam-count scan.
-
-Configure SLAM Toolbox and Nav2 costmaps to subscribe to ``/scan_stable``
-instead of ``/scan`` for consistent angular resolution.
+Point SLAM Toolbox and Nav2 costmaps at /scan_stable instead of /scan.
 """
 import rclpy
 from rclpy.node import Node
@@ -22,7 +14,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from sensor_msgs.msg import LaserScan
 import numpy as np
 
-# QoS profile matching the rplidar_node publisher (BEST_EFFORT, VOLATILE)
+# QoS matching sensor data convention (BEST_EFFORT) — MUST match rplidar_node's publisher
 SENSOR_QOS = QoSProfile(
     reliability=ReliabilityPolicy.BEST_EFFORT,
     durability=DurabilityPolicy.VOLATILE,
@@ -35,7 +27,7 @@ class ScanStabilizer(Node):
     def __init__(self):
         super().__init__('scan_stabilizer')
 
-        # Target output beam count (720 beams = 0.5° angular resolution)
+        # Fixed output beam count (RPLidar Express mode ~500+/rev, standardize to 720 = 0.5° resolution)
         self.target_beams = 720
 
         self.sub = self.create_subscription(LaserScan, '/scan', self.scan_cb, SENSOR_QOS)
@@ -51,14 +43,14 @@ class ScanStabilizer(Node):
 
         ranges_in = np.array(msg.ranges, dtype=np.float32)
 
-        # Mark invalid readings — these must remain invalid in the output
+        # Mark invalid readings (inf, nan, out-of-range) — these MUST stay invalid
         valid = np.isfinite(ranges_in) & (ranges_in >= msg.range_min) & (ranges_in <= msg.range_max)
 
-        # Build uniform input and output angle arrays
+        # Build input/output angle arrays
         angles_in = np.linspace(msg.angle_min, msg.angle_max, n_in)
         angles_out = np.linspace(msg.angle_min, msg.angle_max, self.target_beams)
 
-        # Nearest-neighbour resampling (avoids interpolation through invalid zones)
+        # ---- Nearest-neighbour resampling (no interpolation through invalid zones) ----
         # For each output angle, pick the closest input beam
         indices = np.searchsorted(angles_in, angles_out, side='left')
         indices = np.clip(indices, 0, n_in - 1)
@@ -71,10 +63,10 @@ class ScanStabilizer(Node):
         ranges_out = ranges_in[nearest]
         valid_out = valid[nearest]
 
-        # Invalid input beams map to inf in the output (ignored by SLAM)
+        # Invalid input beams → inf in output (SLAM correctly ignores these)
         ranges_out[~valid_out] = float('inf')
 
-        # Intensities: nearest-neighbour mapping
+        # Intensities: nearest-neighbour too
         if len(msg.intensities) == n_in:
             intensities_in = np.array(msg.intensities, dtype=np.float32)
             intensities_out = intensities_in[nearest]

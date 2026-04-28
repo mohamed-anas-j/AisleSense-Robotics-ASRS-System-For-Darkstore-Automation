@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
 AisleSense Region Navigator — Entry Point
-=========================================
-Launches the Tkinter GUI for loading a navigation map, drawing named
-regions, and sending one-click goal poses to the Nav2 stack.
+
+Launch the GUI to load your navigation map, draw named regions,
+and send one‑click goal poses to the Nav2 stack.
 
 Usage:
-    python main.py                                # Auto-detect map in ../aislesense/
-    python main.py --map ../aislesense/my_room_map.yaml
-    python main.py --map /path/to/map.yaml --regions my_regions.json
-    python main.py --ros-domain-id 42
+  python main.py                                # auto‑find map in ../aislesense/
+  python main.py --map ../aislesense/my_room_map.yaml
+  python main.py --map /path/to/map.yaml --regions my_regions.json
+  python main.py --ros-domain-id 42
 """
 import argparse
 import os

@@ -1,15 +1,13 @@
 """
-AisleSense Vision — Retail Shelf Auditing Dashboard
-====================================================
-Streamlit application that runs a three-stage ONNX inference pipeline
-(shelf segmentation → product detection → depth estimation) and
-presents actionable retail KPIs through an interactive dashboard.
+AisleSense – Retail Auditing Base Station  (3-stage, no OCR)
+=============================================================
+Runs shelf segmentation → product detection → depth estimation
+sequentially with VRAM cleanup between stages.
 
-Designed for the AMD Hackathon to demonstrate AMD CPU and GPU
-acceleration via ONNX Runtime.
+Designed for the AMD Hackathon — showcases AMD CPU + GPU acceleration
+via ONNX Runtime.
 
-Usage:
-    streamlit run app.py
+Launch:  streamlit run app.py
 """
 from __future__ import annotations
 

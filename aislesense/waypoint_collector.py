@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 """
-Waypoint Collector Node
-======================
-Queues goal poses from RViz2 and dispatches them as a batch via the
-Nav2 ``FollowWaypoints`` action.  This prevents the robot from moving
-until the operator explicitly triggers the tour.
+Waypoint Collector Node — click goals in RViz2, they queue up,
+then publish to /start_waypoints to send them all at once.
 
-Usage (from a networked laptop):
-    1. In RViz2, click “2D Goal Pose” to queue waypoints.
-    2. When ready:  ``ros2 topic pub --once /start_waypoints std_msgs/Empty``
-    3. To clear:    ``ros2 topic pub --once /clear_waypoints std_msgs/Empty``
+Usage from your laptop:
+  1. In RViz2, click "2D Goal Pose" to add waypoints (robot won't move)
+  2. When ready:  ros2 topic pub --once /start_waypoints std_msgs/Empty
+  3. To clear:    ros2 topic pub --once /clear_waypoints std_msgs/Empty
 
-The node intercepts ``/goal_pose`` (RViz2’s default output) and uses
-``FollowWaypoints`` instead of ``NavigateToPose`` so that all waypoints
-are executed sequentially.
+The node intercepts /goal_pose (RViz2's output) and prevents Nav2
+from receiving it by using the FollowWaypoints action instead of
+NavigateToPose.
 """
 import rclpy
 from rclpy.node import Node
@@ -45,7 +42,7 @@ class WaypointCollector(Node):
             'then: ros2 topic pub --once /start_waypoints std_msgs/Empty')
 
     def goal_cb(self, msg: PoseStamped):
-        """Queue an incoming goal pose instead of navigating immediately."""
+        """Queue a waypoint instead of navigating immediately."""
         if self.following:
             self.get_logger().warn('Currently following waypoints — ignoring new goal. Clear first.')
             return
@@ -58,14 +55,14 @@ class WaypointCollector(Node):
             f'{n} total queued. Publish /start_waypoints to go!')
 
     def clear_cb(self, msg: Empty):
-        """Discard all queued waypoints."""
+        """Clear all queued waypoints."""
         count = len(self.waypoints)
         self.waypoints.clear()
         self.following = False
         self.get_logger().info(f'Cleared {count} waypoints.')
 
     def start_cb(self, msg: Empty):
-        """Dispatch all queued waypoints to the Nav2 FollowWaypoints action."""
+        """Send all queued waypoints to Nav2 FollowWaypoints."""
         if not self.waypoints:
             self.get_logger().warn('No waypoints queued! Click "2D Goal Pose" first.')
             return

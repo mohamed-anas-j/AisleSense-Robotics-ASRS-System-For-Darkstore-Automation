@@ -1,6 +1,6 @@
-# Contributing to AisleSense
+# Contributing to AisleSense Robotics Darkstore ASRS System
 
-Thank you for your interest in contributing to AisleSense! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to AisleSense Robotics! This document provides guidelines for contributing to the project.
 
 ## Code of Conduct
 

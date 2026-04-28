@@ -1,20 +1,21 @@
 """
-YOLO Post-processing
-====================
+YOLO Post-processing  (Accuracy-focused rewrite)
+=================================================
 Handles both raw (``model.export(format='onnx')``) and end-to-end
-(``nms=True``) ONNX exports for YOLO detection and segmentation models.
+(``nms=True``) ONNX exports for YOLO detection and YOLO-seg.
 
-Format Detection Heuristic:
-    - **Raw**: ``output0`` shape ``[1, K, N]`` where K < N
-      (channels < prediction count).
-    - **End-to-end**: ``output0`` shape ``[1, N, K]`` where K < N
-      (each row is a single detection).
+Format detection heuristic
+--------------------------
+* **Raw**: ``output0`` has shape ``[1, K, N]`` where K < N
+  (channels < prediction count).
+* **End-to-end** (e2e): ``output0`` has shape ``[1, N, K]``
+  where K < N (each row is one detection).
 
-Key Features:
-    - End-to-end segmentation parser for ``(1, 300, 38)`` + prototypes.
-    - Morphological cleanup on final instance masks.
-    - Per-class NMS with validated IoU.
-    - Accurate box-crop of upsampled masks before un-letterboxing.
+Key accuracy improvements over the original:
+  1.  Proper e2e segmentation parser for ``(1, 300, 38)`` + protos.
+  2.  Morphological cleanup on final instance masks.
+  3.  Better NMS — per-class with validated IoU.
+  4.  Accurate box-crop of upsampled masks before un-letterboxing.
 """
 from __future__ import annotations
 

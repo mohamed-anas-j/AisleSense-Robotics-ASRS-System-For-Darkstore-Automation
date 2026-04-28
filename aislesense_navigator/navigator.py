@@ -1,10 +1,10 @@
 """
 AisleSense Region Navigator — Navigation Client
-================================================
-Sends ``NavigateToPose`` goals to the Nav2 stack and publishes initial
-pose estimates.  The client attempts to use ``rclpy`` first (requires a
-sourced ROS 2 environment); falls back to the ``ros2`` CLI via subprocess;
-and finally prints a dry-run summary if neither backend is available.
+
+Sends NavigateToPose goals to the Nav2 stack and publishes
+initial pose estimates.  Tries rclpy first (requires a sourced
+ROS 2 environment); falls back to ros2 CLI via subprocess; and
+finally a dry‑run print if neither is available.
 """
 import math
 import os
@@ -18,19 +18,22 @@ def yaw_to_quaternion(yaw: float):
 
 
 class Navigator:
-    """Sends goal poses and initial-pose estimates to the Nav2 stack."""
+    """Sends goal poses and initial‑pose estimates to Nav2."""
 
     def __init__(self, domain_id: int = 42):
         self.domain_id = domain_id
         self._use_rclpy = False
         self._node = None
         self._action_client = None
+        self._current_goal_handle = None
         self._initial_pose_pub = None
+        self._cmd_vel_pub = None
+        self._tray_cmd_pub = None
         self._cancel_scan = threading.Event()
         self._scan_thread: threading.Thread | None = None
         self._init_ros()
 
-    # ROS 2 initialisation -------------------------------------------------
+    # ── ROS 2 initialisation ──────────────────────────────────
     def _init_ros(self):
         try:
             import rclpy
@@ -38,6 +41,8 @@ class Navigator:
             from rclpy.action import ActionClient
             from nav2_msgs.action import NavigateToPose
             from geometry_msgs.msg import PoseWithCovarianceStamped
+            from geometry_msgs.msg import Twist
+            from std_msgs.msg import String
 
             os.environ['ROS_DOMAIN_ID'] = str(self.domain_id)
             if not rclpy.ok():
@@ -50,6 +55,8 @@ class Navigator:
             # Publisher for /initialpose (2D Pose Estimate)
             self._initial_pose_pub = self._node.create_publisher(
                 PoseWithCovarianceStamped, '/initialpose', 10)
+            self._cmd_vel_pub = self._node.create_publisher(Twist, 'cmd_vel', 10)
+            self._tray_cmd_pub = self._node.create_publisher(String, 'tray_cmd', 10)
 
             self._use_rclpy = True
 
@@ -62,7 +69,7 @@ class Navigator:
                   "will try ros2 CLI fallback")
             self._use_rclpy = False
 
-    # Initial Pose (2D Pose Estimate) --------------------------------------
+    # ── Initial Pose (2D Pose Estimate) ───────────────────────
     def set_initial_pose(self, x: float, y: float, yaw: float,
                          callback=None):
         """
@@ -147,7 +154,7 @@ class Navigator:
 
         threading.Thread(target=_run, daemon=True).start()
 
-    # Public API ------------------------------------------------------------
+    # ── Public API ────────────────────────────────────────────
     def navigate_to(self, x: float, y: float, yaw: float, callback=None):
         """
         Send a goal pose.  *callback(success: bool, message: str)*
@@ -159,7 +166,7 @@ class Navigator:
         else:
             self._nav_subprocess(x, y, quat, callback)
 
-    # Scan Tour ----------------------------------------------------------------
+    # ── Scan Tour ─────────────────────────────────────────────
     def run_scan_tour(self, waypoints, wait_seconds=2, progress_cb=None,
                       done_cb=None):
         """
@@ -238,7 +245,7 @@ class Navigator:
         return (self._scan_thread is not None
                 and self._scan_thread.is_alive())
 
-    # rclpy backend -----------------------------------------------------------
+    # ── rclpy path ────────────────────────────────────────────
     def _nav_rclpy(self, x, y, q, callback):
         from nav2_msgs.action import NavigateToPose
         from geometry_msgs.msg import PoseStamped
@@ -269,15 +276,58 @@ class Navigator:
             if callback:
                 callback(False, "Goal rejected by Nav2")
             return
+        self._current_goal_handle = gh
         result_future = gh.get_result_async()
         result_future.add_done_callback(lambda f: self._on_result(f, callback))
 
-    @staticmethod
-    def _on_result(future, callback):
+    def _on_result(self, future, callback):
+        self._current_goal_handle = None
         if callback:
             callback(True, "Navigation complete!")
 
-    # Subprocess (ros2 CLI) backend ----------------------------------------
+    # ── Manual control publishers ───────────────────────────
+    def publish_cmd_vel(self, linear_x: float, angular_z: float) -> bool:
+        if not self._use_rclpy or not self._cmd_vel_pub:
+            return False
+        from geometry_msgs.msg import Twist
+
+        msg = Twist()
+        msg.linear.x = float(linear_x)
+        msg.angular.z = float(angular_z)
+        self._cmd_vel_pub.publish(msg)
+        return True
+
+    def stop_cmd_vel(self) -> bool:
+        return self.publish_cmd_vel(0.0, 0.0)
+
+    def publish_tray_command(self, command: str) -> bool:
+        if not self._use_rclpy or not self._tray_cmd_pub:
+            return False
+        from std_msgs.msg import String
+
+        cmd = command.strip()[:1].upper()
+        if cmd not in {'I', 'O', 'S'}:
+            return False
+        msg = String()
+        msg.data = cmd
+        self._tray_cmd_pub.publish(msg)
+        return True
+
+    @property
+    def manual_control_available(self) -> bool:
+        return bool(self._use_rclpy and self._cmd_vel_pub and self._tray_cmd_pub)
+
+    def cancel_navigation(self) -> bool:
+        if not self._use_rclpy or not self._current_goal_handle:
+            return False
+        try:
+            cancel_future = self._current_goal_handle.cancel_goal_async()
+            cancel_future.add_done_callback(lambda _f: None)
+            return True
+        except Exception:
+            return False
+
+    # ── subprocess (ros2 CLI) path ────────────────────────────
     def _nav_subprocess(self, x, y, q, callback):
         env = os.environ.copy()
         env['ROS_DOMAIN_ID'] = str(self.domain_id)
@@ -315,7 +365,7 @@ class Navigator:
 
         threading.Thread(target=_run, daemon=True).start()
 
-    # Cleanup ------------------------------------------------------------------
+    # ── Cleanup ───────────────────────────────────────────────
     def shutdown(self):
         self._cancel_scan.set()
         if self._use_rclpy and self._node:

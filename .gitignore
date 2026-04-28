@@ -66,6 +66,9 @@ aislesense/*.yaml
 .DS_Store
 Thumbs.db
 
+# Local session artifacts
+session.txt
+
 # Test coverage
 .coverage
 htmlcov/

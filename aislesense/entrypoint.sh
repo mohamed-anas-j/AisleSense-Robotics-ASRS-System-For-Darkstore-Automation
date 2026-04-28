@@ -12,8 +12,10 @@ echo "============================================="
 # -----------------------------------------------
 python3 /ros2_ws/aislesense_core.py &
 
-# Odometry node — encoder parameters are tunable via environment variables.
-# Calibration: push the robot exactly 1 m and compare against [CALIBRATION] logs.
+# Odometry node — encoder params tunable via env vars:
+#   WHEEL_RADIUS (m), WHEEL_BASE (m), TICKS_PER_REV, LINEAR_CORRECTION, ANGULAR_CORRECTION
+# Calibrate: push robot exactly 1 meter, check logs for [CALIBRATION] total_dist.
+#   If it shows 0.5m, set LINEAR_CORRECTION=2.0, etc.
 python3 /ros2_ws/odometry_node.py --ros-args \
   -p wheel_radius:=${WHEEL_RADIUS:-0.05} \
   -p wheel_base:=${WHEEL_BASE:-0.25} \
@@ -21,20 +23,19 @@ python3 /ros2_ws/odometry_node.py --ros-args \
   -p linear_correction:=${LINEAR_CORRECTION:-1.0} \
   -p angular_correction:=${ANGULAR_CORRECTION:-1.0} &
 
-# RPLidar A1M8 — Express scan mode (~4 K samples/s, ~720 points/rev)
-# angle_compensate distributes beams at uniform angular spacing for cleaner SLAM input
+# RPLidar A1M8 — Express mode (~4K samples/sec, ~720 points/rev at default motor speed)
+# angle_compensate spreads beams into uniform angular spacing for cleaner SLAM input
 MALLOC_CHECK_=0 ros2 run rplidar_ros rplidar_node \
   --ros-args -p serial_port:=/dev/ttyUSB0 -p serial_baudrate:=115200 -p frame_id:=laser \
   -p scan_mode:=Express -p angle_compensate:=true &
 
-# Scan stabilizer — resamples variable RPLidar beam counts to a fixed 720-beam output
+# Scan stabilizer — resamples varying RPLidar beam counts to fixed 720 beams
 python3 /ros2_ws/scan_stabilizer.py &
 
 # -----------------------------------------------
-# Static TF frames:
-#   odom <-(EKF)-> base_link -> laser
-#                  base_link -> imu_link
-#                  base_link -> base_footprint
+# 2. Static TF tree:  odom <-(EKF)-> base_link -> laser
+#                                   base_link -> imu_link
+#                                   base_link -> base_footprint
 # -----------------------------------------------
 ros2 run tf2_ros static_transform_publisher \
   --x 0 --y 0 --z 0.15 --roll 0 --pitch 0 --yaw 3.14159 \
@@ -52,8 +53,8 @@ ros2 run tf2_ros static_transform_publisher \
 sleep 3
 
 # -----------------------------------------------
-# EKF sensor fusion (odom -> base_link TF)
-#   Mapping mode uses tighter encoder noise; navigation mode trusts the IMU more.
+# 3. EKF — fuses odometry + IMU  (odom -> base_link TF)
+#    Uses tighter noise for mapping, looser for nav
 # -----------------------------------------------
 if [ "$ROBOT_MODE" == "mapping" ] || [ "$ROBOT_MODE" == "MAPPING" ]; then
     EKF_CONFIG="/ros2_ws/ekf_mapping.yaml"
@@ -68,7 +69,7 @@ ros2 run robot_localization ekf_node \
 sleep 2
 
 # -----------------------------------------------
-# Mode-specific launch
+# 4. Mode-specific launch
 # -----------------------------------------------
 if [ "$ROBOT_MODE" == "mapping" ] || [ "$ROBOT_MODE" == "MAPPING" ]; then
     echo ""

@@ -31,6 +31,17 @@ The Arduino sends comma-separated key:value pairs at 115200 baud:
 L:<left_ticks>,R:<right_ticks>,GX:<gyro_x>,GY:<gyro_y>,GZ:<gyro_z>,AX:<accel_x>,AY:<accel_y>,AZ:<accel_z>
 ```
 
+Tray control commands are single characters sent over the same serial link:
+
+| Command | Action | Status | Notes |
+|---|---|---|---|
+| `I` | Pull tray in | `STATUS: IN_LIMIT_HIT` | Stops when limit switch hits |
+| `O` | Push tray out | `STATUS: OUT_COMPLETE` | Timed 0.5s extension |
+| `S` | Stop tray | `STATUS: STOPPED` | Immediately stops motors |
+
+These commands are published in ROS as `tray_cmd` and status messages are
+published as `tray_status` by `aislesense_core.py`.
+
 ## Quick Start
 
 ```bash
@@ -95,6 +106,7 @@ Add these displays: **Map** (`/map`), **LaserScan** (`/scan`), **TF**, and the *
 │                                                  │
 │  aislesense_core.py ──► /left_ticks, /right_ticks│
 │         │               /imu/data_raw            │
+│         │               /tray_cmd, /tray_status  │
 │         │               cmd_vel → GPIO motors    │
 │         │                                        │
 │  odometry_node.py ──► /odom                      │
