@@ -31,7 +31,7 @@ packing area for pickup confirmation.
 
 ## Demo
 
-<video src="https://github.com/mohamed-anas-j/AisleSense-Robotics-ASRS-System-For-Darkstore-Automation/raw/main/Demo.mp4" controls width="100%"></video>
+https://github.com/mohamed-anas-j/AisleSense-Robotics-ASRS-System-For-Darkstore-Automation/raw/main/Demo.mp4
 
 ## Architecture
 
