@@ -2,10 +2,10 @@
 
 ## Overview
 
-AisleSense Robotics is a darkstore ASRS system built around a ROS 2 mobile base,
-a desktop navigator UI, and an offline vision analytics pipeline. The system
-supports an assisted route workflow that combines autonomous navigation with
-operator-controlled tray handling at shelf locations.
+AisleSense Robotics is a darkstore ASRS system built around a ROS 2 mobile base
+and a desktop navigator UI. The system supports an assisted route workflow that
+combines autonomous navigation with operator-controlled tray handling at shelf
+locations.
 
 ## Hardware Stack
 
@@ -29,7 +29,6 @@ Repository modules:
 
 - **aislesense/**: Core robot nodes, Docker stack, hardware drivers
 - **aislesense_navigator/**: Tkinter UI for mapping and assisted route control
-- **asvision/**: Offline ONNX pipeline and Streamlit analytics
 
 ## ROS Interfaces
 

@@ -33,17 +33,11 @@ ENV/
 
 # Model files (download separately)
 *.onnx
-!asvision/models/.gitkeep
 *.pt
 *.pth
 *.h5
 *.pb
 *.tflite
-
-# Demo videos (keep these for GitHub)
-!aislesense/*.mp4
-!aislesense/*.webm
-!aislesense/*.mov
 
 # ROS
 *.bag
@@ -54,13 +48,10 @@ build/
 # Map files (generated during runtime)
 aislesense/*.pgm
 aislesense/*.yaml
-!aislesense_map.pgm
-!aislesense_map.yaml
-!my_room_map.pgm
-!my_room_map.yaml
-
-# Streamlit
-.streamlit/secrets.toml
+!aislesense/aislesense_map.pgm
+!aislesense/aislesense_map.yaml
+!aislesense/my_room_map.pgm
+!aislesense/my_room_map.yaml
 
 # OS
 .DS_Store

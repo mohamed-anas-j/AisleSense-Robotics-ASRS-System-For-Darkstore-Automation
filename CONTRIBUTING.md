@@ -40,7 +40,6 @@ Enhancement suggestions are welcome! Please:
 3. **Test your changes**:
    - Ensure existing functionality still works
    - Test on the target hardware if modifying robot code
-   - Verify ONNX models load correctly if changing vision pipeline
 
 4. **Document your changes**:
    - Update README.md if adding features
@@ -64,8 +63,8 @@ Enhancement suggestions are welcome! Please:
 ### Robot Core (aislesense/)
 ```bash
 cd aislesense
-docker-compose build
-docker-compose up
+docker compose build
+docker compose up
 ```
 
 ### Navigator GUI (aislesense_navigator/)
@@ -75,27 +74,10 @@ pip install -r requirements.txt
 python app.py
 ```
 
-### Vision Analytics (asvision/)
-```bash
-cd asvision
-pip install -r requirements.txt
-
-# Download models (see Model Downloads section in README)
-streamlit run app.py
-```
-
-## Model Files
-
-ONNX model files are not stored in Git due to their size. Contributors should:
-- Download models using the instructions in the main README
-- Never commit `.onnx` files to the repository
-- Document any changes to model loading or preprocessing
-
 ## Project Structure
 
 - `aislesense/` — ROS 2 robot core
 - `aislesense_navigator/` — Desktop navigation GUI
-- `asvision/` — Vision inference pipeline
 
 Each module has its own README with specific documentation.
 
