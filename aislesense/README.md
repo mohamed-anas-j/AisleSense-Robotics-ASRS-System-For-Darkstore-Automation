@@ -232,7 +232,3 @@ The container uses `network_mode: host` with:
 - `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`
 
 Your laptop must use the same settings to see topics. Both devices must be on the same network.
-
-## License
-
-MIT
